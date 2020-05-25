@@ -65,6 +65,7 @@ def readParseData(file_name):
     competitions = []
     # iterates over the lines and creates list following the first word in the line
     for line in text_lines:
+        line = line[:-1]
         line_words = line.split(' ')
         if(line_words[0] == 'competitor'):
             competitors.append([line_words[i] for i in range(1,len(line_words))])
@@ -75,35 +76,55 @@ def readParseData(file_name):
         for competition in competitions:
             if (competitor[0] == competition[1]):
                 # orders the labels by the right order
-                ordered_list = [competition[0], competition[2], competition[1], competitor[1], competition[3]]
+                ordered_list = [competition[0], competition[2], int(competition[1]), competitor[1], int(competition[3])]
                 competitors_in_competitions.append({key:value for (key,value) in zip(competition_labels, ordered_list)})
     return competitors_in_competitions
 
-def get_key(val, dict): 
-    for key, value in dict.items(): 
-         if val == value: 
-             return key 
+# if competitor shows more then one time return false
+def checkSingleParticipation(competitors_in_competitions, competition_name, competitor_id):
+    counter = 0
+    for competition in competitors_in_competitions:
+        if competition['competition name'] == competition_name and competition['competitor id'] == competitor_id:
+            counter += 1
+    if counter > 1:
+        return False
+    return True
 
-def calcLowestResult(competition_name, competitors_in_competitions):
-    winning_list = [competition_name, ]
-    countries_result = {}
+# creates a new legal competitors list if needed
+def createLegalParticipantsList(competitors_in_competitions):
+    new_participants_list = [competition for competition in competitors_in_competitions if 
+    checkSingleParticipation(competitors_in_competitions, competition['competition name'],
+                             competition['competitor id'])]
+    return new_participants_list
+
+# best result in comp knockout/timed
+def calcWinningCountries(competition_name, competitors_in_competitions, lowest = True):
+    winning_list = [competition_name, 'undef_country', 'undef_country', 'undef_country']
+    countries = []
+    results = []
     for element in competitors_in_competitions:
         if element['competition name'] == competition_name:
-            countries_result[element['competitor country']] = element['result']
+            countries.append(element['competitor country'])
+            results.append(element['result'])
     for i in range(3):
-        minimun = min(countries_result.values())
-        country_name = get_key(minimun, countries_result)
-        winning_list.append(country_name)
-        del(countries_result[country_name])
+        if countries:
+            if (lowest is True):
+                minimum = min(results)
+                min_index = results.index(minimum)
+                winning_list[i+1] = countries.pop(min_index)
+                results.remove(minimum)
+            elif (lowest is False):
+                maximum = max(results)
+                max_index = results.index(maximum)
+                winning_list[i+1] = countries.pop(max_index)
+                results.remove(maximum)
     return winning_list
-
             
 def checkBestResult(competition_name, competition_type, competitors_in_competitions):
     if (competition_type == 'timed' or competition_type == 'knockout'):
-        return calcLowestResult(competition_name, competitors_in_competitions)
+        return calcWinningCountries(competition_name, competitors_in_competitions)
     else:
-        return calcHighesttResult(competitors_in_competitions)
-
+        return calcWinningCountries(competition_name, competitors_in_competitions, False)
 
 def calcCompetitionsResults(competitors_in_competitions):
     '''
@@ -116,8 +137,15 @@ def calcCompetitionsResults(competitors_in_competitions):
         Every record in the list contains the competition name and the champs, in the following format:
         [competition_name, winning_gold_country, winning_silver_country, winning_bronze_country]
     '''
-
     competitions_champs = []
+    corrected_list = createLegalParticipantsList(competitors_in_competitions)
+    alreadyBeen = []
+    for competition in corrected_list:
+        if competition['competition name'] not in alreadyBeen:
+            competitions_champs.append(
+                checkBestResult(competition['competition name'], competition['competition type'], corrected_list))
+            alreadyBeen.append(competition['competition name'])
+
     # TODO Part A, Task 3.5
     
     return competitions_champs
@@ -141,8 +169,13 @@ def partA(file_name = 'input.txt', allow_prints = True):
 
 
 def partB(file_name = 'input.txt'):
+    import Olympics
     competitions_results = partA(file_name, allow_prints = False)
-
+    olympics = Olympics.OlympicsCreate()
+    for result in competitions_results:
+        Olympics.OlympicsUpdateCompetitionResults(olympics, str(result[1]), str(result[2]), str(result[3]))
+    Olympics.OlympicsWinningCountry(olympics)
+    Olympics.OlympicsDestroy(olympics)
     # TODO Part B
 
 
